@@ -351,8 +351,8 @@ void BoxApp::BuildShadersAndInputLayout()
 {
     HRESULT hr = S_OK;
     
-	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "VS", "vs_5_0");
-	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\color.hlsl", nullptr, "PS", "ps_5_0");
+	mvsByteCode = d3dUtil::CompileShader(L"Shaders\\shaders.hlsl", nullptr, "VS", "vs_5_0");
+	mpsByteCode = d3dUtil::CompileShader(L"Shaders\\shaders.hlsl", nullptr, "PS", "ps_5_0");
 
     mInputLayout =
     {
@@ -363,43 +363,43 @@ void BoxApp::BuildShadersAndInputLayout()
 
 void BoxApp::BuildBoxGeometry()
 {
-    std::array<Vertex, 8> vertices =
+    std::array<Vertex, 3> vertices =
     {
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) }),
-		Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) }),
-		Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) }),
-		Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) })
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, 0.0f), XMFLOAT4(Colors::White) }),
+		Vertex({ XMFLOAT3(+3.0f, +1.0f, 0.0f), XMFLOAT4(Colors::Black) }),
+		Vertex({ XMFLOAT3(-1.0f, -3.0f, 0.0f), XMFLOAT4(Colors::Red) }),
+		//Vertex({ XMFLOAT3(+1.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Green) }),
+		//Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Blue) }),
+		//Vertex({ XMFLOAT3(-1.0f, +1.0f, 0.0f), XMFLOAT4(Colors::Yellow) }),
+		//Vertex({ XMFLOAT3(+1.0f, +1.0f, 0.0f), XMFLOAT4(Colors::Cyan) }),
+		//Vertex({ XMFLOAT3(+1.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Magenta) })
     };
 
-	std::array<std::uint16_t, 36> indices =
+	std::array<std::uint16_t, 3> indices =
 	{
 		// front face
 		0, 1, 2,
-		0, 2, 3,
+		//0, 2, 3,
 
-		// back face
-		4, 6, 5,
-		4, 7, 6,
+		//// back face
+		//4, 6, 5,
+		//4, 7, 6,
 
-		// left face
-		4, 5, 1,
-		4, 1, 0,
+		//// left face
+		//4, 5, 1,
+		//4, 1, 0,
 
-		// right face
-		3, 2, 6,
-		3, 6, 7,
+		//// right face
+		//3, 2, 6,
+		//3, 6, 7,
 
-		// top face
-		1, 5, 6,
-		1, 6, 2,
+		//// top face
+		//1, 5, 6,
+		//1, 6, 2,
 
-		// bottom face
-		4, 0, 3,
-		4, 3, 7
+		//// bottom face
+		//4, 0, 3,
+		//4, 3, 7
 	};
 
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
