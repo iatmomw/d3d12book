@@ -16,54 +16,32 @@ cbuffer cbPerObject : register(b0)
 
 struct VertexIn
 {
-    float3 PosL : POSITION;
-    float4 Color : COLOR;
+    float4 position : POSITION;
+    float2 uv : TEXCOORD;
 };
 
 struct VertexOut
 {
-    float4 PosH : SV_POSITION;
-    float4 Color : COLOR;
+    float4 position : SV_POSITION;
+    float2 uv : TEXCOORD;
 };
+
+Texture2D g_texture : register(t0);
+SamplerState g_sampler : register(s0);
 
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 	
-	// Transform to homogeneous clip space.
-    vout.PosH = float4(vin.PosL, 1.0f); //    mul(float4(vin.PosL, 1.0f), gWorldViewProj);
-	
-	// Just pass vertex color into the pixel shader.
-    vout.Color = vin.Color;
+    vout.position = vin.position;
+    //vout.position = mul(vin.position, gWorldViewProj);
+    vout.uv = vin.uv;
     
     return vout;
 }
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    return pin.Color;
-}
-
-//struct PSInput
-//{
-//    float4 position : SV_POSITION;
-//    float2 uv : TEXCOORD;
-//};
-
-//Texture2D g_texture : register(t0);
-//SamplerState g_sampler : register(s0);
-
-//PSInput VSMain(float4 position : POSITION, float4 uv : TEXCOORD)
-//{
-//    PSInput result;
-
-//    result.position = position;
-//    result.uv = uv;
-
-//    return result;
-//}
-
-//float4 PSMain(PSInput input) : SV_TARGET
-//{
-//    return g_texture.Sample(g_sampler, input.uv);
-//}
+    //return float4(pin.uv, 0.0f,0.0f);
+    return g_texture.Sample(g_sampler, pin.uv);
+    }

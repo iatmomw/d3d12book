@@ -19,7 +19,7 @@ using namespace DirectX::PackedVector;
 struct Vertex
 {
     XMFLOAT3 Pos;
-    XMFLOAT4 Color;
+    XMFLOAT2 TexC;
 };
 
 struct ObjectConstants
@@ -46,9 +46,11 @@ private:
     virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
+    void LoadTextures();
     void BuildDescriptorHeaps();
 	void BuildConstantBuffers();
     void BuildRootSignature();
+    void BuildCSRootSignature();
     void BuildShadersAndInputLayout();
     void BuildBoxGeometry();
     void BuildPSO();
@@ -56,6 +58,7 @@ private:
 private:
     
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+    ComPtr<ID3D12RootSignature> mCSRootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 
     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
@@ -67,6 +70,7 @@ private:
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
+    std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
     ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
     XMFLOAT4X4 mWorld = MathHelper::Identity4x4();
@@ -120,9 +124,11 @@ bool BoxApp::Initialize()
     // Reset the command list to prep for initialization commands.
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
  
-    BuildDescriptorHeaps();
-	BuildConstantBuffers();
+    LoadTextures();
+    //BuildConstantBuffers();
     BuildRootSignature();
+    BuildCSRootSignature();
+    BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildBoxGeometry();
     BuildPSO();
@@ -277,15 +283,86 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
+void BoxApp::LoadTextures()
+{
+    auto userTex = std::make_unique<Texture>();
+    userTex->Name = "userTex";
+    userTex->Filename = L"../../Textures/Cyberpunk4k.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), userTex->Filename.c_str(),
+        userTex->Resource, userTex->UploadHeap));
+
+    mTextures[userTex->Name] = std::move(userTex);
+}
+
 void BoxApp::BuildDescriptorHeaps()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
-    cbvHeapDesc.NumDescriptors = 1;
-    cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	cbvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc,
-        IID_PPV_ARGS(&mCbvHeap)));
+    //
+    // Create the SRV heap.
+    //
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));
+
+    //
+    // Fill out the heap with texture descriptors.
+    //
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    auto userTex = mTextures["userTex"]->Resource;
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = userTex->GetDesc().Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = -1;
+    md3dDevice->CreateShaderResourceView(userTex.Get(), &srvDesc, hDescriptor);
+
+
+    //D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+    //cbvHeapDesc.NumDescriptors = 2;
+    //cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    //cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    //cbvHeapDesc.NodeMask = 0;
+    //ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc,
+    //    IID_PPV_ARGS(&mCbvHeap)));
+
+    ////
+    //// Create the SRV heap.
+    ////
+    //D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    //srvHeapDesc.NumDescriptors = 1; // +blurDescriptorCount;
+    //srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    //srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    //ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mCbvSrvUavDescriptorHeap)));
+
+    //
+ //   // Fill out the heap with texture descriptors.
+ //   //
+ //   CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mCbvSrvUavDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+ //   auto userTex = mTextures["userTex"]->Resource;
+
+ //   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+ //   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+ //   srvDesc.Format = userTex->GetDesc().Format;
+ //   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+ //   srvDesc.Texture2D.MostDetailedMip = 0;
+ //   srvDesc.Texture2D.MipLevels = 1;
+ //   md3dDevice->CreateShaderResourceView(userTex.Get(), &srvDesc, hDescriptor);
+
+ ////   // next descriptor
+ ////   hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+
+ ////   D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+ ////   cbvHeapDesc.NumDescriptors = 1;
+ ////   cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+ ////   cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	////cbvHeapDesc.NodeMask = 0;
+ ////   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvSrvUavDescriptorHeap)));
 }
 
 void BoxApp::BuildConstantBuffers()
@@ -310,22 +387,34 @@ void BoxApp::BuildConstantBuffers()
 
 void BoxApp::BuildRootSignature()
 {
-	// Shader programs typically require resources as input (constant buffers,
-	// textures, samplers).  The root signature defines the resources the shader
-	// programs expect.  If we think of the shader programs as a function, and
-	// the input resources as function parameters, then the root signature can be
-	// thought of as defining the function signature.  
+    CD3DX12_DESCRIPTOR_RANGE texTable;
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    
+    // Root parameter can be a table, root descriptor or root constants.
+    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
-	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+    // Perfomance TIP: Order from most frequent to least frequent.
+    slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+    slotRootParameter[1].InitAsConstantBufferView(0);
 
-	// Create a single descriptor table of CBVs.
-	CD3DX12_DESCRIPTOR_RANGE cbvTable;
-	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
+    // Sampler
+    D3D12_STATIC_SAMPLER_DESC sampler = {};
+    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    sampler.MipLODBias = 0;
+    sampler.MaxAnisotropy = 0;
+    sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+    sampler.MinLOD = 0.0f;
+    sampler.MaxLOD = D3D12_FLOAT32_MAX;
+    sampler.ShaderRegister = 0;
+    sampler.RegisterSpace = 0;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr, 
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 1, &sampler, 
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
@@ -347,6 +436,47 @@ void BoxApp::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
+void BoxApp::BuildCSRootSignature()
+{
+    CD3DX12_DESCRIPTOR_RANGE srvTable;
+    srvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+    CD3DX12_DESCRIPTOR_RANGE uavTable;
+    uavTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+
+    // Root parameter can be a table, root descriptor or root constants.
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+
+    // Perfomance TIP: Order from most frequent to least frequent.
+    slotRootParameter[0].InitAsConstants(12, 0);
+    slotRootParameter[1].InitAsDescriptorTable(1, &srvTable);
+    slotRootParameter[2].InitAsDescriptorTable(1, &uavTable);
+
+    // A root signature is an array of root parameters.
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+        0, nullptr,
+        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+    // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+    ComPtr<ID3DBlob> serializedRootSig = nullptr;
+    ComPtr<ID3DBlob> errorBlob = nullptr;
+    HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+        serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+    if (errorBlob != nullptr)
+    {
+        ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+    }
+    ThrowIfFailed(hr);
+
+    ThrowIfFailed(md3dDevice->CreateRootSignature(
+        0,
+        serializedRootSig->GetBufferPointer(),
+        serializedRootSig->GetBufferSize(),
+        IID_PPV_ARGS(mCSRootSignature.GetAddressOf())));
+}
+
+
 void BoxApp::BuildShadersAndInputLayout()
 {
     HRESULT hr = S_OK;
@@ -357,7 +487,7 @@ void BoxApp::BuildShadersAndInputLayout()
     mInputLayout =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 }
 
@@ -365,9 +495,9 @@ void BoxApp::BuildBoxGeometry()
 {
     std::array<Vertex, 3> vertices =
     {
-        Vertex({ XMFLOAT3(-1.0f, +1.0f, 0.0f), XMFLOAT4(Colors::White) }),
-		Vertex({ XMFLOAT3(+3.0f, +1.0f, 0.0f), XMFLOAT4(Colors::Black) }),
-		Vertex({ XMFLOAT3(-1.0f, -3.0f, 0.0f), XMFLOAT4(Colors::Red) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) }),
+		Vertex({ XMFLOAT3(+3.0f, +1.0f, 0.0f), XMFLOAT2(2.0f, 0.0f) }),
+		Vertex({ XMFLOAT3(-1.0f, -3.0f, 0.0f), XMFLOAT2(0.0f, 2.0f) }),
 		//Vertex({ XMFLOAT3(+1.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Green) }),
 		//Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Blue) }),
 		//Vertex({ XMFLOAT3(-1.0f, +1.0f, 0.0f), XMFLOAT4(Colors::Yellow) }),
